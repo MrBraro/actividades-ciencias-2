@@ -93,12 +93,8 @@ class ArbolB:
                 # La clave no existe en el árbol
                 return
 
-            self._garantizar_minimo(nodo, i)
-
-            # Tras el rebalanceo, el índice del hijo correcto puede haber cambiado
-            # (si hubo fusión con el hermano izquierdo, la clave "bajó" un índice)
-            if i > len(nodo.claves):
-                i = len(nodo.claves)
+            # Capturamos el índice ajustado tras el rebalanceo
+            i = self._garantizar_minimo(nodo, i)
 
             self._eliminar_recursivo(nodo.hijos[i], clave)
 
@@ -138,7 +134,7 @@ class ArbolB:
         minimo = self._minimo_claves()
 
         if len(nodo.hijos[i].claves) > minimo:
-            return  # ya cumple, no hace falta nada
+            return i # ya cumple, no hace falta nada
 
         # Intentar pedir prestado al hermano izquierdo
         if i > 0 and len(nodo.hijos[i - 1].claves) > minimo:
@@ -152,8 +148,10 @@ class ArbolB:
             # Preferir fusionar con el hermano izquierdo si existe
             if i > 0:
                 self._fusionar(nodo, i - 1)
+                i -= 1
             else:
                 self._fusionar(nodo, i)
+        return i
 
 
     def _pedir_prestado_izquierda(self, nodo, i):
