@@ -8,6 +8,7 @@ public class NumerosPseudoaleatorios {
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
+        
 
         System.out.println("=== GENERADOR DE NÚMEROS ALEATORIOS UNIFORMES (LCG) ===");
         System.out.print("Ingrese el límite inferior del rango (ej. 0): ");
@@ -27,6 +28,8 @@ public class NumerosPseudoaleatorios {
         System.out.println("\n--- Secuencia Generada ---");
         System.out.println(resultado);
         System.out.println("Total de números generados: " + resultado.size());
+
+        scanner.close();
     }
 
     /**
@@ -109,5 +112,6 @@ public class NumerosPseudoaleatorios {
             }
         }
         return factores;
+    
     }
 }

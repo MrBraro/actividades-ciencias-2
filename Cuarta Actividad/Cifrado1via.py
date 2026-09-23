@@ -1,52 +1,15 @@
-"""
-SISTEMA DE CIFRADO DE UNA SOLA VÍA (HASH) - VERSIÓN DUAL
-----------------------------------------------------------
-Incluye dos algoritmos, ambos irreversibles (no existe función de
-"descifrado"):
-
-  1) SHA-256 MODIFICADO
-     - Basado en la estructura estándar de SHA-256, pero con:
-       a) Vectores de inicialización (IV) propios, distintos a los
-          oficiales (se generan igual que el estándar -raíz cuadrada
-          de primos- pero usando OTRO conjunto de primos).
-       b) Rotaciones extra añadidas tanto en la expansión del mensaje
-          como en cada ronda de compresión, para aumentar la difusión.
-     - NO es compatible con SHA-256 real ni ha sido auditado
-       criptográficamente. Es un ejercicio educativo.
-
-  2) ALGORITMO PROPIO BASADO EN ASCII (no lineal)
-     - Usa una S-box (caja de sustitución) generada con una fórmula
-       no lineal (multiplicación modular + mezcla de bits).
-     - Combina sustitución, rotación de bits y XOR encadenado sobre
-       un estado interno de 8 bytes.
-
-Ambos son de una sola vía porque pierden información deliberadamente
-(operaciones módulo, desplazamientos, sustituciones no biyectivas),
-por lo que no existe una forma matemática de invertir el proceso.
-"""
-
 import math
 
 
-# ============================================================
 # 1) SHA-256 MODIFICADO
-# ============================================================
 
 def _rotr(x, n, w=32):
-    """Rotación circular de bits a la derecha (n bits, palabra de w bits)."""
+#Rotación circular de bits a la derecha (n bits, palabra de w bits)
     return ((x >> n) | (x << (w - n))) & 0xFFFFFFFF
 
 
 def _generar_iv_personalizados():
-    """
-    Genera 8 palabras de 32 bits usando la parte fraccionaria de la raíz
-    cuadrada de números primos (igual que el SHA-256 oficial), pero con
-    un conjunto de primos DIFERENTE:
-
-        SHA-256 oficial usa: 2, 3, 5, 7, 11, 13, 17, 19
-        Aquí usamos:         23, 29, 31, 37, 41, 43, 47, 53
-    """
-    primos = [23, 29, 31, 37, 41, 43, 47, 53]
+    primos = [23, 29, 31, 37, 41, 43, 47, 53] # usamos nuestros propios primos a diferencia del sha estandard
     iv = []
     for p in primos:
         frac = math.sqrt(p) % 1
@@ -70,8 +33,7 @@ _K = [
 
 
 def _rellenar_mensaje(mensaje_bytes):
-    """Aplica el relleno (padding) estándar tipo SHA-256: bit '1', ceros,
-    y longitud original del mensaje en 64 bits al final."""
+    #Aplica el relleno (padding) estándar tipo SHA-256: bit '1', ceros, y longitud original del mensaje en 64 bits al final.
     longitud_bits = (len(mensaje_bytes) * 8) & 0xFFFFFFFFFFFFFFFF
     mensaje_bytes += b'\x80'
     while (len(mensaje_bytes) % 64) != 56:
@@ -81,10 +43,6 @@ def _rellenar_mensaje(mensaje_bytes):
 
 
 def sha256_modificado(texto: str, rotacion_extra: int = 5) -> str:
-    """
-    Variante NO estándar de SHA-256 con IV propios y rotaciones extra.
-    Devuelve un hash hexadecimal de 64 caracteres (256 bits).
-    """
     H = _generar_iv_personalizados()
     mensaje = _rellenar_mensaje(texto.encode('utf-8'))
 
@@ -127,17 +85,9 @@ def sha256_modificado(texto: str, rotacion_extra: int = 5) -> str:
     return ''.join(f'{x:08x}' for x in H)
 
 
-# ============================================================
 # 2) ALGORITMO PROPIO BASADO EN ASCII (no lineal)
-# ============================================================
 
 def _generar_sbox():
-    """
-    Genera una caja de sustitución (S-box) de 256 valores usando una
-    combinación no lineal: multiplicación modular por un primo +
-    mezcla de bits con rotación. Introduce no linealidad (la salida
-    no varía de forma proporcional a la entrada).
-    """
     sbox = []
     for i in range(256):
         val = (i * 167 + 173) % 256                     # multiplicación no lineal
@@ -151,12 +101,6 @@ _SBOX = _generar_sbox()
 
 
 def cifrado_ascii_no_lineal(texto: str, clave: int = 42) -> str:
-    """
-    Algoritmo propio de una sola vía: recorre cada carácter, obtiene su
-    código ASCII/UTF-8, lo pasa por la S-box (sustitución no lineal),
-    y lo combina con un estado interno de 8 bytes mediante suma modular,
-    sustitución y rotación de bits, encadenando todo con XOR.
-    """
     estado = [0x6a, 0x09, 0xe6, 0x67, 0xbb, 0x67, 0xae, 0x85]  # estado inicial (8 bytes)
 
     for i, caracter in enumerate(texto):
@@ -172,9 +116,7 @@ def cifrado_ascii_no_lineal(texto: str, clave: int = 42) -> str:
     return ''.join(f'{byte:02x}' for byte in estado)
 
 
-# ============================================================
 # 3) MENÚ INTERACTIVO
-# ============================================================
 
 def _mostrar_resultado(nombre, texto, hash_resultado):
     print(f"\nTexto original : {texto}")
