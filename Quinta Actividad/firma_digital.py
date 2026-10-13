@@ -1,36 +1,3 @@
-"""
-SISTEMA DE FIRMA DIGITAL
-========================
-
-Objetivo del proceso:
-  1. INTEGRIDAD   -> demostrar que el documento recibido es EXACTAMENTE
-                     el original (no fue modificado ni un solo bit).
-  2. AUTENTICIDAD -> demostrar que quien firmó es el dueño del documento,
-                     es decir, quien posee la llave privada correspondiente
-                     a la llave pública usada para verificar.
-
-Piezas que se combinan:
-  - Cifrado de una vía (hash): sha256_modificado, tomado de Cifrado1via.py.
-    Se usa para "resumir" el documento en una huella de 256 bits.
-  - Cifrado asimétrico (llave pública / llave privada): RSA, implementado
-    aquí desde cero, siguiendo la estructura clásica de una firma digital:
-
-        firmar    -> firma = hash(documento) cifrado con la LLAVE PRIVADA
-        verificar -> se descifra la firma con la LLAVE PÚBLICA y se
-                     compara contra el hash recalculado del documento
-
-  Solo quien tiene la llave privada pudo haber generado una firma que,
-  al descifrarla con la llave pública correspondiente, coincida con el
-  hash del documento. Y si el documento cambia aunque sea un carácter,
-  su hash cambia por completo (efecto avalancha) y la verificación falla.
-
-Nota de seguridad: esta es una implementación educativa de "RSA de libro"
-(sin relleno / padding OAEP-PSS). Para un entorno productivo real se
-usarían librerías como `cryptography` con padding PSS, pero para esta
-actividad se construye la estructura matemática completa a mano, tal como
-se hizo con el hash en Cifrado1via.py.
-"""
-
 import math
 import random
 from dataclasses import dataclass
@@ -164,19 +131,27 @@ def firmar_documento(documento: str, llaves: ParLlaves) -> DocumentoFirmado:
     )
 
 
-def verificar_documento(documento_recibido: str, firmado: DocumentoFirmado):
+def verificar_documento(documento_recibido: str, firmado: DocumentoFirmado,
+                         llave_publica: LlavePublica = None):
     """
     Proceso de verificación:
       1. Se recalcula el hash del documento tal como llegó.
-      2. Se descifra la firma con la LLAVE PÚBLICA del supuesto firmante.
+      2. Se descifra la firma con una LLAVE PÚBLICA (por defecto, la del
+         propio firmante; pero se puede pasar OTRA a propósito para
+         simular una verificación contra "quien se dice que firmó").
       3. Si ambos valores coinciden:
            - el documento NO fue modificado (integridad)
            - la firma solo pudo generarla quien tiene la llave privada
              asociada a esa llave pública (autenticidad / dueño)
 
+    'llave_publica' permite forzar la verificación contra la llave
+    pública de una persona distinta al firmante real, para probar
+    manualmente un caso de suplantación (Caso C).
+
     Retorna (es_valida, detalle) donde detalle explica qué se comprobó.
     """
-    e, n = firmado.llave_publica.e, firmado.llave_publica.n
+    llave = llave_publica or firmado.llave_publica
+    e, n = llave.e, llave.n
 
     hash_actual_hex = sha256_modificado(documento_recibido)
     hash_actual_int = int(hash_actual_hex, 16)
@@ -301,18 +276,32 @@ def menu():
             if clave_doc not in firmados_registrados:
                 print("No existe ese identificador.")
                 continue
+            firmado = firmados_registrados[clave_doc]
+
+            print(f"Este documento dice haber sido firmado por: {firmado.firmante}")
+            print("Llaves públicas registradas:", ", ".join(llaves_registradas))
+            nombre_verificar = input(
+                f"¿Contra la llave pública de quién quieres verificar? "
+                f"(Enter = '{firmado.firmante}'): "
+            ).strip()
+            if not nombre_verificar:
+                nombre_verificar = firmado.firmante
+            if nombre_verificar not in llaves_registradas:
+                print("Ese nombre no tiene llaves registradas.")
+                continue
+            llave_publica_usar = llaves_registradas[nombre_verificar].publica
+
             texto_a_verificar = input(
                 "Pega el documento tal como fue recibido (puede estar igual o alterado): "
             )
-            firmado = firmados_registrados[clave_doc]
-            valida, detalle = verificar_documento(texto_a_verificar, firmado)
+            valida, detalle = verificar_documento(texto_a_verificar, firmado, llave_publica_usar)
             print(f"\n¿Firma válida? -> {valida}")
             print(f"Hash recibido   : {detalle['hash_del_documento_recibido']}")
             print(f"Hash de la firma: {detalle['hash_recuperado_de_la_firma']}")
             if valida:
-                print("✅ Documento íntegro y firmado por su dueño.")
+                print(f"✅ Documento íntegro y firmado por '{nombre_verificar}'.")
             else:
-                print("❌ El documento fue modificado o la firma no corresponde al firmante.")
+                print(f"❌ El documento fue modificado, o la firma NO corresponde a '{nombre_verificar}'.")
 
         elif opcion == "4":
             demo()
