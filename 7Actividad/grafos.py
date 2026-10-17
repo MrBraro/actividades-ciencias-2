@@ -454,11 +454,14 @@ def cargar_ejemplo(Clase):
     return g
 
 
-# =====================================================================
-#  ALGORITMOS DE CAMINOS MÁS CORTOS — FUNCIONES COMPARTIDAS
-#  Los algoritmos usan solo vertices() y aristas(), así que funcionan
-#  con las 4 representaciones sin cambiar nada.
-# =====================================================================
+
+
+
+#  Funciones Compartidas
+
+
+
+
 INF = float("inf")
 
 
@@ -496,14 +499,14 @@ def mostrar_resultado(nombre, origen, dist, previo):
         print(f"  {v:<10}{formato(dist[v]):<12}{txt}")
 
 
-# #####################################################################
-# #####################################################################
+
+
+
 #  ALGORITMO 1: DIJKSTRA
-#  - Desde UN origen hacia todos los vértices.
-#  - Voraz: en cada paso fija el vértice no visitado más cercano.
-#  - NO admite pesos negativos.
-# #####################################################################
-# #####################################################################
+
+
+
+
 def dijkstra(grafo, origen, mostrar_pasos=False):
     """
     Distancias más cortas desde 'origen' a todos los vértices.
@@ -542,25 +545,16 @@ def dijkstra(grafo, origen, mostrar_pasos=False):
             print(f"  Paso {paso}: se fija {u} (dist={formato(dist[u])})"
                   f"  → actualiza: {', '.join(cambios) or 'nada'}")
     return dist, previo
-# ---------------------------- FIN DIJKSTRA ----------------------------
 
 
-# #####################################################################
-# #####################################################################
+
+
 #  ALGORITMO 2: BELLMAN-FORD
-#  - Desde UN origen hacia todos los vértices.
-#  - Relaja TODAS las aristas, V-1 veces (V = número de vértices).
-#  - Admite pesos negativos y DETECTA ciclos negativos.
-#  - Ojo: en un grafo no dirigido, cualquier arista negativa alcanzable
-#    ya es un ciclo negativo (se puede ir y volver por ella: A-B-A...).
-# #####################################################################
-# #####################################################################
+
+
+
+
 def bellman_ford(grafo, origen, mostrar_pasos=False):
-    """
-    Distancias más cortas desde 'origen' a todos los vértices.
-    Devuelve (dist, previo), igual que Dijkstra.
-    Lanza ValueError si encuentra un ciclo negativo alcanzable.
-    """
     grafo._validar_vertice(origen)
 
     vertices = grafo.vertices()
@@ -599,29 +593,15 @@ def bellman_ford(grafo, origen, mostrar_pasos=False):
                 "distancias pueden bajar indefinidamente, así que no existe "
                 "camino más corto.")
     return dist, previo
-# -------------------------- FIN BELLMAN-FORD --------------------------
 
 
-# #####################################################################
-# #####################################################################
+
+
 #  ALGORITMO 3: FLOYD-WARSHALL
-#  - Entre TODOS los pares de vértices (no necesita origen).
-#  - Programación dinámica sobre una matriz de distancias:
-#      para cada vértice intermedio k, para cada par (i, j):
-#      dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
-#  - Admite pesos negativos y DETECTA ciclos negativos
-#    (si al final algún dist[i][i] < 0).
-# #####################################################################
-# #####################################################################
+
+
+
 def floyd_warshall(grafo, mostrar_pasos=False):
-    """
-    Distancias más cortas entre todos los pares de vértices.
-    Devuelve (nombres, dist, sig):
-      nombres    = lista de vértices (orden de filas y columnas)
-      dist[i][j] = distancia mínima de nombres[i] a nombres[j]
-      sig[i][j]  = índice del siguiente vértice en el camino de i a j
-    Lanza ValueError si hay un ciclo negativo.
-    """
     nombres = grafo.vertices()
     n = len(nombres)
     pos = {v: i for i, v in enumerate(nombres)}
@@ -667,7 +647,6 @@ def floyd_warshall(grafo, mostrar_pasos=False):
 
 
 def camino_floyd(nombres, sig, i, j):
-    """Sigue la matriz 'sig' desde i hasta j para armar el camino."""
     if sig[i][j] is None:
         return []                                   # no hay camino
     camino = [nombres[i]]
