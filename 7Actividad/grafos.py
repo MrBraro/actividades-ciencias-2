@@ -1,25 +1,15 @@
-"""
-Representación computacional de grafos (TAD Grafo)
-==================================================
-Cuatro representaciones:
-  1. Lista de adyacencias
-  2. Lista de incidencias
-  3. Matriz de adyacencias
-  4. Matriz de incidencias
-
-Todas comparten la misma interfaz y permiten AGREGAR, ELIMINAR y MODIFICAR
-vértices y aristas. Los grafos son NO dirigidos y ponderados
-(peso por defecto = 1). El peso 0 no se permite porque en las matrices
-el 0 significa "no hay arista".
-"""
 from abc import ABC, abstractmethod
 
-
-# =====================================================================
 #  CLASE BASE (la abstracción / TAD)
-# =====================================================================
 class Grafo(ABC):
     nombre = "Grafo"
+
+    def __init__(self, dirigido=False):
+        self.dirigido = dirigido
+
+    @property
+    def tipo(self):
+        return "dirigido" if self.dirigido else "no dirigido"
 
     # ---------------- operaciones que cada representación implementa
     @abstractmethod
@@ -73,11 +63,14 @@ class Grafo(ABC):
 
     # ---------------- utilidades internas
     def _misma(self, a, b, u, v):
-        """¿La arista (a,b) es la misma que (u,v)? El orden no importa."""
+        """¿La arista (a,b) es la misma que (u,v)?
+        No dirigido: el orden no importa. Dirigido: el orden sí importa."""
+        if self.dirigido:
+            return (a, b) == (u, v)
         return (a, b) == (u, v) or (a, b) == (v, u)
 
     def _txt(self, u, v):
-        return f"{u}--{v}"
+        return f"{u}->{v}" if self.dirigido else f"{u}--{v}"
 
     def _validar_vertice(self, v):
         if not self.existe_vertice(v):
@@ -100,7 +93,7 @@ class Grafo(ABC):
             raise ValueError(f"La arista {self._txt(u, v)} ya existe")
 
     def _encabezado(self):
-        print(f"\n=== {self.nombre} ===")
+        print(f"\n=== {self.nombre} ({self.tipo}) ===")
 
 
 def imprimir_tabla(filas, columnas, M):
@@ -118,11 +111,13 @@ def imprimir_tabla(filas, columnas, M):
 # =====================================================================
 #  1. LISTA DE ADYACENCIAS
 #     { vertice: { vecino: peso } }
+#     Dirigido: ady[u] contiene solo los vecinos a los que u APUNTA.
 # =====================================================================
 class ListaAdyacencia(Grafo):
     nombre = "Lista de adyacencias"
 
-    def __init__(self):
+    def __init__(self, dirigido=False):
+        super().__init__(dirigido)
         self.ady = {}
 
     def vertices(self):
@@ -132,6 +127,9 @@ class ListaAdyacencia(Grafo):
         res, vistas = [], set()
         for u, vecinos in self.ady.items():
             for v, p in vecinos.items():
+                if self.dirigido:                  # cada (u, v) es una arista distinta
+                    res.append((u, v, p))
+                    continue
                 clave = frozenset((u, v))
                 if clave not in vistas:
                     vistas.add(clave)
@@ -159,19 +157,21 @@ class ListaAdyacencia(Grafo):
     def agregar_arista(self, u, v, peso=1):
         self._validar_nueva_arista(u, v, peso)
         self.ady[u][v] = peso
-        self.ady[v][u] = peso
+        if not self.dirigido:
+            self.ady[v][u] = peso
 
     def eliminar_arista(self, u, v):
         self.peso(u, v)                          # valida que exista
         del self.ady[u][v]
-        if u != v:
+        if not self.dirigido and u != v:
             del self.ady[v][u]
 
     def modificar_peso(self, u, v, peso):
         self._validar_peso(peso)
         self.peso(u, v)
         self.ady[u][v] = peso
-        self.ady[v][u] = peso
+        if not self.dirigido:
+            self.ady[v][u] = peso
 
     def mostrar(self):
         self._encabezado()
@@ -186,11 +186,13 @@ class ListaAdyacencia(Grafo):
 #  2. LISTA DE INCIDENCIAS
 #     { vertice: [ids de aristas que inciden en él] }
 #     { id_arista: [vertice1, vertice2, peso] }
+#     Dirigido: vertice1 = origen, vertice2 = destino.
 # =====================================================================
 class ListaIncidencia(Grafo):
     nombre = "Lista de incidencias"
 
-    def __init__(self):
+    def __init__(self, dirigido=False):
+        super().__init__(dirigido)
         self.inc = {}
         self.tabla = {}
         self._cont = 0
@@ -263,12 +265,15 @@ class ListaIncidencia(Grafo):
 
 # =====================================================================
 #  3. MATRIZ DE ADYACENCIAS   (n x n)
-#     M[i][j] = M[j][i] = peso si hay arista i--j, 0 si no (simétrica)
+#     No dirigido: M[i][j] = M[j][i] = peso si hay arista i--j (simétrica)
+#     Dirigido:    M[i][j] = peso si hay arista i->j (no simétrica)
+#     0 = no hay arista.
 # =====================================================================
 class MatrizAdyacencia(Grafo):
     nombre = "Matriz de adyacencias"
 
-    def __init__(self):
+    def __init__(self, dirigido=False):
+        super().__init__(dirigido)
         self.nombres = []
         self.M = []
 
@@ -282,8 +287,9 @@ class MatrizAdyacencia(Grafo):
     def aristas(self):
         res, n = [], len(self.nombres)
         for i in range(n):
-            # matriz simétrica: solo triángulo superior (incluida la diagonal)
-            for j in range(i, n):
+            # no dirigido: matriz simétrica, basta el triángulo superior
+            # dirigido: hay que recorrer toda la matriz
+            for j in range(0 if self.dirigido else i, n):
                 if self.M[i][j] != 0:
                     res.append((self.nombres[i], self.nombres[j], self.M[i][j]))
         return res
@@ -311,20 +317,23 @@ class MatrizAdyacencia(Grafo):
         self._validar_nueva_arista(u, v, peso)
         i, j = self._i(u), self._i(v)
         self.M[i][j] = peso
-        self.M[j][i] = peso
+        if not self.dirigido:
+            self.M[j][i] = peso
 
     def eliminar_arista(self, u, v):
         self.peso(u, v)
         i, j = self._i(u), self._i(v)
         self.M[i][j] = 0
-        self.M[j][i] = 0
+        if not self.dirigido:
+            self.M[j][i] = 0
 
     def modificar_peso(self, u, v, peso):
         self._validar_peso(peso)
         self.peso(u, v)
         i, j = self._i(u), self._i(v)
         self.M[i][j] = peso
-        self.M[j][i] = peso
+        if not self.dirigido:
+            self.M[j][i] = peso
 
     def mostrar(self):
         self._encabezado()
@@ -333,14 +342,16 @@ class MatrizAdyacencia(Grafo):
 
 # =====================================================================
 #  4. MATRIZ DE INCIDENCIAS   (n vértices x m aristas)
-#     1 en ambos extremos de la arista.
-#     Lazo: 2.
+#     No dirigido: 1 en ambos extremos de la arista.
+#     Dirigido:    +1 en el origen y -1 en el destino.
+#     Lazo: 2 (en ambos casos).
 #     Los pesos se guardan aparte (un peso por columna).
 # =====================================================================
 class MatrizIncidencia(Grafo):
     nombre = "Matriz de incidencias"
 
-    def __init__(self):
+    def __init__(self, dirigido=False):
+        super().__init__(dirigido)
         self.nombres = []       # filas
         self.ids = []           # columnas
         self.pesos = []
@@ -360,7 +371,9 @@ class MatrizIncidencia(Grafo):
         if len(filas) == 1:                     # lazo
             v = self.nombres[filas[0][0]]
             return v, v
-        (i1, _), (i2, _) = filas
+        (i1, x1), (i2, x2) = filas
+        if self.dirigido and x1 < 0:            # la fila con -1 es el destino
+            i1, i2 = i2, i1
         return self.nombres[i1], self.nombres[i2]
 
     def aristas(self):
@@ -407,8 +420,8 @@ class MatrizIncidencia(Grafo):
         if i == k:
             self.M[i][-1] = 2
         else:
-            self.M[i][-1] = 1
-            self.M[k][-1] = 1
+            self.M[i][-1] = 1                   # origen (o extremo)
+            self.M[k][-1] = -1 if self.dirigido else 1   # destino (o extremo)
 
     def eliminar_arista(self, u, v):
         self._quitar_col(self._col(u, v))
@@ -436,8 +449,9 @@ REPRESENTACIONES = {
 
 
 def convertir(grafo, Clase):
-    """Pasa un grafo de una representación a otra usando solo la interfaz común."""
-    nuevo = Clase()
+    """Pasa un grafo de una representación a otra usando solo la interfaz común.
+    Conserva si el grafo es dirigido o no."""
+    nuevo = Clase(grafo.dirigido)
     for v in grafo.vertices():
         nuevo.agregar_vertice(v)
     for u, v, p in grafo.aristas():
@@ -445,32 +459,34 @@ def convertir(grafo, Clase):
     return nuevo
 
 
-def cargar_ejemplo(Clase):
-    g = Clase()
+EJEMPLO_NO_DIRIGIDO = [("A", "B", 4), ("A", "C", 2), ("B", "C", 5), ("C", "D", 1), ("D", "D", 3)]
+# El dirigido incluye un peso negativo (C->B = -1): Dijkstra falla, Bellman-Ford no.
+EJEMPLO_DIRIGIDO = [("A", "B", 4), ("A", "C", 2), ("C", "B", -1), ("B", "D", 3), ("C", "D", 5)]
+
+
+def cargar_ejemplo(Clase, dirigido=False):
+    g = Clase(dirigido)
     for v in "ABCD":
         g.agregar_vertice(v)
-    for u, v, p in [("A", "B", 4), ("A", "C", 2), ("B", "C", 5), ("C", "D", 1), ("D", "D", 3)]:
+    for u, v, p in (EJEMPLO_DIRIGIDO if dirigido else EJEMPLO_NO_DIRIGIDO):
         g.agregar_arista(u, v, p)
     return g
 
 
-
-
-
-#  Funciones Compartidas
-
-
+# Funciones Compartidas
 
 
 INF = float("inf")
 
 
 def vecinos_de(grafo):
-    """Arma {vértice: [(vecino, peso), ...]} a partir de las aristas (no dirigido)."""
+    """Arma {vértice: [(vecino, peso), ...]} a partir de las aristas.
+    No dirigido: la arista se agrega en ambos sentidos.
+    Dirigido: solo de origen a destino."""
     vec = {v: [] for v in grafo.vertices()}
     for u, v, p in grafo.aristas():
         vec[u].append((v, p))
-        if u != v:
+        if not grafo.dirigido and u != v:
             vec[v].append((u, p))
     return vec
 
@@ -500,20 +516,11 @@ def mostrar_resultado(nombre, origen, dist, previo):
 
 
 
-
-
 #  ALGORITMO 1: DIJKSTRA
 
 
 
-
 def dijkstra(grafo, origen, mostrar_pasos=False):
-    """
-    Distancias más cortas desde 'origen' a todos los vértices.
-    Devuelve (dist, previo):
-      dist[v]   = distancia mínima de origen a v (INF si es inalcanzable)
-      previo[v] = vértice anterior a v en el camino más corto
-    """
     grafo._validar_vertice(origen)
     if any(p < 0 for _, _, p in grafo.aristas()):
         raise ValueError("Dijkstra no admite pesos negativos")
@@ -547,22 +554,19 @@ def dijkstra(grafo, origen, mostrar_pasos=False):
     return dist, previo
 
 
-
-
 #  ALGORITMO 2: BELLMAN-FORD
-
-
 
 
 def bellman_ford(grafo, origen, mostrar_pasos=False):
     grafo._validar_vertice(origen)
 
     vertices = grafo.vertices()
-    # Como el grafo es no dirigido, cada arista u--v se revisa en los dos sentidos
+    # Dirigido: las aristas se usan tal cual (u -> v).
+    # No dirigido: cada arista u--v se revisa en los dos sentidos.
     aristas = []
     for u, v, p in grafo.aristas():
         aristas.append((u, v, p))
-        if u != v:
+        if not grafo.dirigido and u != v:
             aristas.append((v, u, p))
 
     dist = {v: INF for v in vertices}
@@ -596,7 +600,6 @@ def bellman_ford(grafo, origen, mostrar_pasos=False):
 
 
 
-
 #  ALGORITMO 3: FLOYD-WARSHALL
 
 
@@ -613,9 +616,12 @@ def floyd_warshall(grafo, mostrar_pasos=False):
         i, j = pos[u], pos[v]
         if i == j:                                  # lazo: solo importa si es negativo
             dist[i][i] = min(dist[i][i], p)
-        else:                                       # no dirigido: simétrica
-            dist[i][j] = dist[j][i] = p
-            sig[i][j], sig[j][i] = j, i
+        else:
+            dist[i][j] = p
+            sig[i][j] = j
+            if not grafo.dirigido:                  # no dirigido: simétrica
+                dist[j][i] = p
+                sig[j][i] = i
 
     if mostrar_pasos:
         print("\n  Matriz inicial (D0):")
@@ -647,6 +653,7 @@ def floyd_warshall(grafo, mostrar_pasos=False):
 
 
 def camino_floyd(nombres, sig, i, j):
+    """Sigue la matriz 'sig' desde i hasta j para armar el camino."""
     if sig[i][j] is None:
         return []                                   # no hay camino
     camino = [nombres[i]]
@@ -656,17 +663,20 @@ def camino_floyd(nombres, sig, i, j):
     return camino
 
 
-def mostrar_floyd(nombres, dist, sig):
+def mostrar_floyd(nombres, dist, sig, dirigido=False):
     print("\n=== Floyd-Warshall: matriz de distancias ===")
     imprimir_tabla(nombres, nombres, [[formato(x) for x in f] for f in dist])
     print("\n  Caminos más cortos:")
     n = len(nombres)
+    sep = "->" if dirigido else "--"
     for i in range(n):
-        for j in range(i + 1, n):                   # no dirigido: basta con i < j
+        # no dirigido: basta con i < j; dirigido: ida y vuelta son distintas
+        for j in (range(n) if dirigido else range(i + 1, n)):
+            if i == j:
+                continue
             camino = camino_floyd(nombres, sig, i, j)
             txt = " -> ".join(camino) if camino else "sin camino"
-            print(f"    {nombres[i]}--{nombres[j]}: {formato(dist[i][j]):<5} {txt}")
-# ------------------------- FIN FLOYD-WARSHALL -------------------------
+            print(f"    {nombres[i]}{sep}{nombres[j]}: {formato(dist[i][j]):<5} {txt}")
 
 
 def leer(msg):
@@ -719,12 +729,21 @@ def elegir_representacion():
     return REPRESENTACIONES[op]
 
 
+def elegir_dirigido():
+    op = input("\n¿El grafo es dirigido? (s/n): ").strip().lower()
+    while op not in ("s", "n"):
+        op = input("Responda s o n: ").strip().lower()
+    return op == "s"
+
+
 def menu():
     print("=== REPRESENTACIÓN COMPUTACIONAL DE GRAFOS ===")
-    g = elegir_representacion()()
+    dirigido = elegir_dirigido()
+    g = elegir_representacion()(dirigido)
 
     while True:
-        print(MENU.format(nombre=g.nombre))
+        print(MENU.format(nombre=f"{g.nombre} ({g.tipo})"))
+        a1, a2 = ("Origen", "Destino") if g.dirigido else ("Vértice 1", "Vértice 2")
         op = input("Opción: ").strip()
         try:
             if op == "1":
@@ -737,19 +756,19 @@ def menu():
                 g.renombrar_vertice(leer("Nombre actual: "), leer("Nuevo nombre: "))
                 print("✔ Vértice modificado")
             elif op == "4":
-                u, v = leer("Vértice 1: "), leer("Vértice 2: ")
+                u, v = leer(f"{a1}: "), leer(f"{a2}: ")
                 g.agregar_arista(u, v, leer_peso())
                 print("✔ Arista agregada")
             elif op == "5":
-                g.eliminar_arista(leer("Vértice 1: "), leer("Vértice 2: "))
+                g.eliminar_arista(leer(f"{a1}: "), leer(f"{a2}: "))
                 print("✔ Arista eliminada")
             elif op == "6":
-                u, v = leer("Vértice 1: "), leer("Vértice 2: ")
+                u, v = leer(f"{a1}: "), leer(f"{a2}: ")
                 g.modificar_peso(u, v, leer_peso("Nuevo peso: "))
                 print("✔ Peso modificado")
             elif op == "7":
-                u, v = leer("Vértice 1 actual: "), leer("Vértice 2 actual: ")
-                g.modificar_arista(u, v, leer("Nuevo vértice 1: "), leer("Nuevo vértice 2: "))
+                u, v = leer(f"{a1} actual: "), leer(f"{a2} actual: ")
+                g.modificar_arista(u, v, leer(f"Nuevo {a1.lower()}: "), leer(f"Nuevo {a2.lower()}: "))
                 print("✔ Arista modificada")
             elif op == "8":
                 g.mostrar()
@@ -760,7 +779,7 @@ def menu():
                 g = convertir(g, elegir_representacion())
                 print(f"✔ Ahora se usa: {g.nombre}")
             elif op == "11":
-                g = cargar_ejemplo(type(g))
+                g = cargar_ejemplo(type(g), g.dirigido)
                 print("✔ Ejemplo cargado (A, B, C, D)")
                 g.mostrar()
             elif op == "12":
@@ -775,7 +794,7 @@ def menu():
                 mostrar_resultado("Bellman-Ford", origen, dist, previo)
             elif op == "14":
                 pasos = input("¿Mostrar paso a paso? (s/n): ").strip().lower() == "s"
-                mostrar_floyd(*floyd_warshall(g, pasos))
+                mostrar_floyd(*floyd_warshall(g, pasos), dirigido=g.dirigido)
             elif op == "0":
                 print("¡Hasta luego!")
                 break
