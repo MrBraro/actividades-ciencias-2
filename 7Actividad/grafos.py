@@ -455,9 +455,9 @@ def cargar_ejemplo(Clase):
 
 
 # =====================================================================
-#  ALGORITMOS DE CAMINOS MÁS CORTOS
-#  Usan solo vertices() y aristas(), así que funcionan con las 4
-#  representaciones sin cambiar nada.
+#  ALGORITMOS DE CAMINOS MÁS CORTOS — FUNCIONES COMPARTIDAS
+#  Los algoritmos usan solo vertices() y aristas(), así que funcionan
+#  con las 4 representaciones sin cambiar nada.
 # =====================================================================
 INF = float("inf")
 
@@ -483,6 +483,27 @@ def reconstruir_camino(previo, origen, destino):
     return camino[::-1]
 
 
+def formato(x):
+    return "∞" if x == INF else str(x)
+
+
+def mostrar_resultado(nombre, origen, dist, previo):
+    print(f"\n=== {nombre} desde {origen} ===")
+    print(f"  {'Destino':<10}{'Distancia':<12}Camino")
+    for v in dist:
+        camino = reconstruir_camino(previo, origen, v)
+        txt = " -> ".join(camino) if camino else "sin camino"
+        print(f"  {v:<10}{formato(dist[v]):<12}{txt}")
+
+
+# #####################################################################
+# #####################################################################
+#  ALGORITMO 1: DIJKSTRA
+#  - Desde UN origen hacia todos los vértices.
+#  - Voraz: en cada paso fija el vértice no visitado más cercano.
+#  - NO admite pesos negativos.
+# #####################################################################
+# #####################################################################
 def dijkstra(grafo, origen, mostrar_pasos=False):
     """
     Distancias más cortas desde 'origen' a todos los vértices.
@@ -521,19 +542,152 @@ def dijkstra(grafo, origen, mostrar_pasos=False):
             print(f"  Paso {paso}: se fija {u} (dist={formato(dist[u])})"
                   f"  → actualiza: {', '.join(cambios) or 'nada'}")
     return dist, previo
+# ---------------------------- FIN DIJKSTRA ----------------------------
 
 
-def formato(x):
-    return "∞" if x == INF else str(x)
+# #####################################################################
+# #####################################################################
+#  ALGORITMO 2: BELLMAN-FORD
+#  - Desde UN origen hacia todos los vértices.
+#  - Relaja TODAS las aristas, V-1 veces (V = número de vértices).
+#  - Admite pesos negativos y DETECTA ciclos negativos.
+#  - Ojo: en un grafo no dirigido, cualquier arista negativa alcanzable
+#    ya es un ciclo negativo (se puede ir y volver por ella: A-B-A...).
+# #####################################################################
+# #####################################################################
+def bellman_ford(grafo, origen, mostrar_pasos=False):
+    """
+    Distancias más cortas desde 'origen' a todos los vértices.
+    Devuelve (dist, previo), igual que Dijkstra.
+    Lanza ValueError si encuentra un ciclo negativo alcanzable.
+    """
+    grafo._validar_vertice(origen)
+
+    vertices = grafo.vertices()
+    # Como el grafo es no dirigido, cada arista u--v se revisa en los dos sentidos
+    aristas = []
+    for u, v, p in grafo.aristas():
+        aristas.append((u, v, p))
+        if u != v:
+            aristas.append((v, u, p))
+
+    dist = {v: INF for v in vertices}
+    previo = {v: None for v in vertices}
+    dist[origen] = 0
+
+    # 1. Repetir V-1 veces: relajar todas las aristas
+    for ronda in range(1, len(vertices)):
+        cambios = []
+        for u, v, p in aristas:
+            if dist[u] != INF and dist[u] + p < dist[v]:
+                dist[v] = dist[u] + p
+                previo[v] = u
+                cambios.append(f"{v}={formato(dist[v])} (vía {u})")
+
+        if mostrar_pasos:
+            print(f"  Ronda {ronda}: actualiza: {', '.join(cambios) or 'nada'}")
+        if not cambios:                             # nada cambió: ya terminó
+            if mostrar_pasos:
+                print("  Sin cambios en esta ronda → se detiene antes")
+            break
+
+    # 2. Una ronda más: si algo aún mejora, hay un ciclo negativo
+    for u, v, p in aristas:
+        if dist[u] != INF and dist[u] + p < dist[v]:
+            raise ValueError(
+                f"Se detectó un ciclo negativo alcanzable desde {origen}: las "
+                "distancias pueden bajar indefinidamente, así que no existe "
+                "camino más corto.")
+    return dist, previo
+# -------------------------- FIN BELLMAN-FORD --------------------------
 
 
-def mostrar_resultado(nombre, origen, dist, previo):
-    print(f"\n=== {nombre} desde {origen} ===")
-    print(f"  {'Destino':<10}{'Distancia':<12}Camino")
-    for v in dist:
-        camino = reconstruir_camino(previo, origen, v)
-        txt = " -> ".join(camino) if camino else "sin camino"
-        print(f"  {v:<10}{formato(dist[v]):<12}{txt}")
+# #####################################################################
+# #####################################################################
+#  ALGORITMO 3: FLOYD-WARSHALL
+#  - Entre TODOS los pares de vértices (no necesita origen).
+#  - Programación dinámica sobre una matriz de distancias:
+#      para cada vértice intermedio k, para cada par (i, j):
+#      dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+#  - Admite pesos negativos y DETECTA ciclos negativos
+#    (si al final algún dist[i][i] < 0).
+# #####################################################################
+# #####################################################################
+def floyd_warshall(grafo, mostrar_pasos=False):
+    """
+    Distancias más cortas entre todos los pares de vértices.
+    Devuelve (nombres, dist, sig):
+      nombres    = lista de vértices (orden de filas y columnas)
+      dist[i][j] = distancia mínima de nombres[i] a nombres[j]
+      sig[i][j]  = índice del siguiente vértice en el camino de i a j
+    Lanza ValueError si hay un ciclo negativo.
+    """
+    nombres = grafo.vertices()
+    n = len(nombres)
+    pos = {v: i for i, v in enumerate(nombres)}
+
+    # 1. Matriz inicial: 0 en la diagonal, peso si hay arista, ∞ si no
+    dist = [[0 if i == j else INF for j in range(n)] for i in range(n)]
+    sig = [[j if i == j else None for j in range(n)] for i in range(n)]
+    for u, v, p in grafo.aristas():
+        i, j = pos[u], pos[v]
+        if i == j:                                  # lazo: solo importa si es negativo
+            dist[i][i] = min(dist[i][i], p)
+        else:                                       # no dirigido: simétrica
+            dist[i][j] = dist[j][i] = p
+            sig[i][j], sig[j][i] = j, i
+
+    if mostrar_pasos:
+        print("\n  Matriz inicial (D0):")
+        imprimir_tabla(nombres, nombres, [[formato(x) for x in f] for f in dist])
+
+    # 2. Probar cada vértice k como intermedio
+    for k in range(n):
+        cambios = []
+        for i in range(n):
+            for j in range(n):
+                if dist[i][k] + dist[k][j] < dist[i][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                    sig[i][j] = sig[i][k]
+                    cambios.append(f"{nombres[i]}-{nombres[j]}={formato(dist[i][j])}")
+
+        if mostrar_pasos:
+            print(f"\n  k = {nombres[k]} (D{k + 1}): "
+                  f"actualiza: {', '.join(cambios) or 'nada'}")
+            imprimir_tabla(nombres, nombres, [[formato(x) for x in f] for f in dist])
+
+    # 3. Un valor negativo en la diagonal indica un ciclo negativo
+    for i in range(n):
+        if dist[i][i] < 0:
+            raise ValueError(
+                f"Se detectó un ciclo negativo (pasa por {nombres[i]}): las "
+                "distancias pueden bajar indefinidamente, así que no existe "
+                "camino más corto.")
+    return nombres, dist, sig
+
+
+def camino_floyd(nombres, sig, i, j):
+    """Sigue la matriz 'sig' desde i hasta j para armar el camino."""
+    if sig[i][j] is None:
+        return []                                   # no hay camino
+    camino = [nombres[i]]
+    while i != j:
+        i = sig[i][j]
+        camino.append(nombres[i])
+    return camino
+
+
+def mostrar_floyd(nombres, dist, sig):
+    print("\n=== Floyd-Warshall: matriz de distancias ===")
+    imprimir_tabla(nombres, nombres, [[formato(x) for x in f] for f in dist])
+    print("\n  Caminos más cortos:")
+    n = len(nombres)
+    for i in range(n):
+        for j in range(i + 1, n):                   # no dirigido: basta con i < j
+            camino = camino_floyd(nombres, sig, i, j)
+            txt = " -> ".join(camino) if camino else "sin camino"
+            print(f"    {nombres[i]}--{nombres[j]}: {formato(dist[i][j]):<5} {txt}")
+# ------------------------- FIN FLOYD-WARSHALL -------------------------
 
 
 def leer(msg):
@@ -571,6 +725,8 @@ MENU = """
  10. Cambiar de representación (conserva los datos)
  11. Cargar grafo de ejemplo
  12. Dijkstra (camino más corto desde un vértice)
+ 13. Bellman-Ford (camino más corto, admite pesos negativos)
+ 14. Floyd-Warshall (caminos más cortos entre todos los pares)
   0. Salir"""
 
 
@@ -633,6 +789,14 @@ def menu():
                 pasos = input("¿Mostrar paso a paso? (s/n): ").strip().lower() == "s"
                 dist, previo = dijkstra(g, origen, pasos)
                 mostrar_resultado("Dijkstra", origen, dist, previo)
+            elif op == "13":
+                origen = leer("Vértice origen: ")
+                pasos = input("¿Mostrar paso a paso? (s/n): ").strip().lower() == "s"
+                dist, previo = bellman_ford(g, origen, pasos)
+                mostrar_resultado("Bellman-Ford", origen, dist, previo)
+            elif op == "14":
+                pasos = input("¿Mostrar paso a paso? (s/n): ").strip().lower() == "s"
+                mostrar_floyd(*floyd_warshall(g, pasos))
             elif op == "0":
                 print("¡Hasta luego!")
                 break
