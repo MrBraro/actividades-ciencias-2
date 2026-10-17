@@ -562,7 +562,6 @@ def bellman_ford(grafo, origen, mostrar_pasos=False):
 
     vertices = grafo.vertices()
     # Dirigido: las aristas se usan tal cual (u -> v).
-    # No dirigido: cada arista u--v se revisa en los dos sentidos.
     aristas = []
     for u, v, p in grafo.aristas():
         aristas.append((u, v, p))
