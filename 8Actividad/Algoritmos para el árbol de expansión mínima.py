@@ -232,11 +232,11 @@ def menu():
                 grafo.mostrar()
             elif opcion == "2":
                 grafo = cargar_grafo_esparcido()
-                print("Grafo esparcido (Línea) cargado:")
+                print("Grafo esparcido cargado:")
                 grafo.mostrar()
             elif opcion == "3":
                 grafo = cargar_grafo_denso()
-                print("Grafo denso (Completo) cargado:")
+                print("Grafo denso cargado:")
                 grafo.mostrar()
             elif opcion == "4":
                 v = input("Nombre del vértice: ").strip()
