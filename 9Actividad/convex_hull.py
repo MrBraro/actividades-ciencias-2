@@ -243,21 +243,13 @@ ALGORITMOS = {
 }
 
 
-def generar_puntos(n, distribucion, semilla=None):
-    """Genera n puntos aleatorios en [0, 1000] según la distribución elegida."""
+def generar_puntos(n, semilla=None):
+    """
+    Genera n puntos con distribución gaussiana (normal) alrededor de (500, 500):
+    la mayoría queda cerca del centro y muy pocos se alejan.
+    """
     rnd = random.Random(semilla)
-    if distribucion == "cuadrado":                  # uniforme en un cuadrado
-        return [(rnd.uniform(0, 1000), rnd.uniform(0, 1000)) for _ in range(n)]
-    if distribucion == "disco":                     # uniforme dentro de un círculo
-        pts = []
-        for _ in range(n):
-            r = 500 * math.sqrt(rnd.random())
-            t = rnd.uniform(0, 2 * math.pi)
-            pts.append((500 + r * math.cos(t), 500 + r * math.sin(t)))
-        return pts
-    if distribucion == "gaussiana":                 # concentrada en el centro
-        return [(rnd.gauss(500, 120), rnd.gauss(500, 120)) for _ in range(n)]
-    raise ValueError(f"Distribución desconocida: {distribucion}")
+    return [(rnd.gauss(500, 120), rnd.gauss(500, 120)) for _ in range(n)]
 
 
 def normalizar(hull):
@@ -283,10 +275,10 @@ def es_convexo_y_encierra(hull, puntos):
     return True
 
 
-def ejecutar(n, distribucion, semilla, graficar, archivo):
-    print(f"Generando {n:,} puntos (distribución: {distribucion})...".replace(",", "."))
+def ejecutar(n, semilla, graficar, archivo):
+    print(f"Generando {n:,} puntos (distribución gaussiana)...".replace(",", "."))
     t0 = time.perf_counter()
-    puntos = generar_puntos(n, distribucion, semilla)
+    puntos = generar_puntos(n, semilla)
     print(f"  listo en {time.perf_counter() - t0:.2f} s\n")
 
     resultados = {}
@@ -306,11 +298,11 @@ def ejecutar(n, distribucion, semilla, graficar, archivo):
           else "\n  ✘ Los algoritmos NO coinciden")
 
     if graficar:
-        dibujar(puntos, resultados, distribucion, archivo)
+        dibujar(puntos, resultados, archivo)
     return resultados
 
 
-def dibujar(puntos, resultados, distribucion, archivo):
+def dibujar(puntos, resultados, archivo):
     try:
         import matplotlib
         if not hasattr(sys, "ps1") and not _hay_pantalla():
@@ -324,7 +316,7 @@ def dibujar(puntos, resultados, distribucion, archivo):
     xs = [p[0] for p in puntos]
     ys = [p[1] for p in puntos]
     fig, ejes = plt.subplots(1, 3, figsize=(18, 6.5))
-    fig.suptitle(f"Convex Hull de {len(puntos):,} puntos ({distribucion})".replace(",", "."),
+    fig.suptitle(f"Convex Hull de {len(puntos):,} puntos (gaussiana)".replace(",", "."),
                  fontsize=15)
 
     for ax, (nombre, (hull, tiempo)) in zip(ejes, resultados.items()):
@@ -349,7 +341,6 @@ def dibujar(puntos, resultados, distribucion, archivo):
 def _hay_pantalla():
     import os
     return sys.platform.startswith(("win", "darwin")) or bool(os.environ.get("DISPLAY"))
-
 
 # =====================================================================
 #  PRUEBA DE CORRECCIÓN (casos pequeños, con repetidos y colineales)
@@ -376,8 +367,6 @@ def prueba_correccion(casos=500):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Simulación de Convex Hull")
     ap.add_argument("-n", type=int, default=1_000_000, help="cantidad de puntos")
-    ap.add_argument("-d", "--distribucion", default="cuadrado",
-                    choices=["cuadrado", "disco", "gaussiana"])
     ap.add_argument("-s", "--semilla", type=int, default=42,
                     help="semilla aleatoria (misma semilla = mismos puntos)")
     ap.add_argument("--sin-grafica", action="store_true", help="no dibujar")
@@ -389,5 +378,5 @@ if __name__ == "__main__":
     if args.prueba:
         prueba_correccion()
     else:
-        ejecutar(args.n, args.distribucion, args.semilla,
+        ejecutar(args.n, args.semilla,
                  not args.sin_grafica, args.archivo)
